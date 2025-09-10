@@ -34,3 +34,9 @@ export interface SubscriptionResonse {
   data: BookTicker;
   stream: string;
 }
+
+export interface CurrentPriceData {
+  price: string;
+  decimal: string;
+  asset: string;
+}
