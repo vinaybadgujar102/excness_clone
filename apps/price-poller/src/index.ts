@@ -1,8 +1,13 @@
 import { WebSocket } from "ws";
 import { BACKPACK_WS_URL } from "@repo/backend-common/constants";
 import { getPriceTickerForAssets } from "./utils";
-import { SubscriptionResonse } from "@repo/backend-common/types";
+import {
+  CurrentPriceData,
+  SubscriptionResonse,
+} from "@repo/backend-common/types";
 import { createClient } from "redis";
+
+let currentPrice = {};
 
 const ws = new WebSocket(BACKPACK_WS_URL);
 const client = createClient();
@@ -30,22 +35,31 @@ ws.on("open", () => {
 });
 
 function pushToStream(data: SubscriptionResonse) {
-  const flatData = {
-    stream: data.stream,
-    event: data.data.e,
-    eventTime: data.data.E.toString(),
-    symbol: data.data.s,
-    askPrice: data.data.a,
-    askQuantity: data.data.A,
-    bidPrice: data.data.b,
-    bidQuantity: data.data.B,
-    updateId: data.data.uz,
-    timestamp: data.data.T.toString(),
+  currentPrice = {
+    price: (Number(data.data.a) * 6).toString(),
+    decimal: "6",
+    asset: data.data.s,
   };
-  client.xAdd("queue1", "*", flatData);
+  // client.xAdd("queue1", "*", {
+  //   message: JSON.stringify({
+  //     kind: "current-price",
+  //     ...currentPrice,
+  //   }),
+  // });
 }
 
 ws.on("message", (data) => {
   const response = JSON.parse(data.toString()) as SubscriptionResonse;
   // push this tick, every 500 ms to the engine via stream
+  pushToStream(response);
 });
+
+setInterval(() => {
+  client.xAdd("queue1", "*", {
+    message: JSON.stringify({
+      kind: "current-price",
+      ...currentPrice,
+    }),
+  });
+  currentPrice = {};
+}, 500);
